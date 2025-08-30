@@ -1,0 +1,53 @@
+server:
+  host: "localhost"
+  port: "8080"
+
+database:
+  driver: "sqlite"
+  dsn: "tv-forward.db"
+
+endpoints:
+  - name: "Telegram Bot"
+    type: "telegram"
+    url: ""
+    token: "YOUR_TELEGRAM_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+    is_active: false
+
+  - name: "WeChat Bot"
+    type: "wechat"
+    url: "YOUR_WECHAT_WEBHOOK_URL"
+    token: ""
+    chat_id: ""
+    is_active: false
+
+  - name: "DingTalk Bot"
+    type: "dingtalk"
+    url: "YOUR_DINGTALK_WEBHOOK_URL"
+    token: ""
+    chat_id: ""
+    is_active: false
+
+  - name: "Custom Webhook"
+    type: "webhook"
+    url: "https://your-custom-webhook.com/endpoint"
+    token: ""
+    chat_id: ""
+    is_active: false
+
+trading:
+  bitget:
+    api_key: "YOUR_BITGET_API_KEY"
+    secret_key: "YOUR_BITGET_SECRET_KEY"
+    passphrase: "YOUR_BITGET_PASSPHRASE"
+    is_active: false
+
+  binance:
+    api_key: "YOUR_BINANCE_API_KEY"
+    secret_key: "YOUR_BINANCE_SECRET_KEY"
+    is_active: false
+
+  derbit:
+    api_key: "YOUR_DERBIT_API_KEY"
+    secret_key: "YOUR_DERBIT_SECRET_KEY"
+    is_active: false
