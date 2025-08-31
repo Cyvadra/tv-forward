@@ -7,8 +7,12 @@ import (
 
 // SetupRoutes configures all the routes for the application
 func SetupRoutes(r *gin.Engine) {
-	// Create handlers
-	alertHandler := handlers.NewAlertHandler()
+	// Get the configured handler
+	alertHandler := handlers.GetGlobalHandler()
+	if alertHandler == nil {
+		// Fallback to creating a new handler if global handler is not set
+		alertHandler = handlers.NewAlertHandler()
+	}
 
 	// API routes
 	api := r.Group("/api/v1")

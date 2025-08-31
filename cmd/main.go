@@ -7,6 +7,7 @@ import (
 
 	"github.com/Cyvadra/tv-forward/internal/config"
 	"github.com/Cyvadra/tv-forward/internal/database"
+	"github.com/Cyvadra/tv-forward/internal/handlers"
 	"github.com/Cyvadra/tv-forward/internal/routes"
 	"github.com/gin-gonic/gin"
 )
@@ -58,8 +59,12 @@ func main() {
 
 // setupServices configures all services with the application configuration
 func setupServices(cfg *config.Config) {
-	// Services are configured within the handlers when they are created
-	// The configuration is passed through the handler initialization
+	// Create alert handler and set its configuration
+	alertHandler := handlers.NewAlertHandler()
+	alertHandler.SetConfig(cfg)
+
+	// Store the configured handler globally so routes can access it
+	handlers.SetGlobalHandler(alertHandler)
 }
 
 // createDefaultConfig creates a default configuration

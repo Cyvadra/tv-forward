@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,6 +13,9 @@ import (
 	"github.com/Cyvadra/tv-forward/internal/services"
 	"github.com/gin-gonic/gin"
 )
+
+// Global handler instance
+var globalHandler *AlertHandler
 
 // TradingViewAlert represents the structure of a TradingView webhook alert
 type TradingViewAlert struct {
@@ -43,6 +46,16 @@ func NewAlertHandler() *AlertHandler {
 	}
 }
 
+// SetGlobalHandler sets the global handler instance
+func SetGlobalHandler(handler *AlertHandler) {
+	globalHandler = handler
+}
+
+// GetGlobalHandler returns the global handler instance
+func GetGlobalHandler() *AlertHandler {
+	return globalHandler
+}
+
 // SetConfig sets the configuration for all services
 func (h *AlertHandler) SetConfig(cfg *config.Config) {
 	h.forwardService.SetConfig(cfg)
@@ -53,17 +66,27 @@ func (h *AlertHandler) SetConfig(cfg *config.Config) {
 func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 	var alert TradingViewAlert
 	flagIsTradingAlert := true
-	if err := c.ShouldBindJSON(&alert); err != nil {
+
+	// Read the request body
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Printf("Failed to read request body: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		return
+	}
+
+	// Try to parse as JSON
+	if err := json.Unmarshal(body, &alert); err != nil {
 		flagIsTradingAlert = false
-		// print out raw request
-		log.Printf("Raw request: %s", c.Request.Body)
+		// Log the raw request body for debugging
+		log.Printf("Raw request body: %s", string(body))
 		alert = TradingViewAlert{
 			Strategy: "alert",
 			Symbol:   "",
 			Action:   "",
 			Price:    0.0,
 			Quantity: 0.0,
-			Message:  fmt.Sprintf("%s", c.Request.Body),
+			Message:  string(body),
 			Exchange: "",
 			Time:     time.Now().Format(time.RFC3339),
 		}
