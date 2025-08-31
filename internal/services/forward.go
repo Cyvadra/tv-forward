@@ -99,6 +99,8 @@ func (s *ForwardService) forwardToTelegram(alert *models.Alert, endpoint config.
 func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.EndpointConfig) error {
 	message := s.formatRawMessage(alert)
 
+	log.Printf("WeChat message: %s", message)
+
 	payload := map[string]interface{}{
 		"msgtype": "text",
 		"text": map[string]string{
@@ -118,6 +120,7 @@ func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.En
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("wechat API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
+	log.Printf("WeChat response: %s", resp.String())
 
 	return nil
 }
