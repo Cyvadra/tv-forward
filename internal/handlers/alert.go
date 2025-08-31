@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -51,10 +52,21 @@ func (h *AlertHandler) SetConfig(cfg *config.Config) {
 // HandleTradingViewAlert handles incoming TradingView alerts
 func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 	var alert TradingViewAlert
+	flagIsTradingAlert := true
 	if err := c.ShouldBindJSON(&alert); err != nil {
-		log.Printf("Failed to bind JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload"})
-		return
+		flagIsTradingAlert = false
+		// print out raw request
+		log.Printf("Raw request: %s", c.Request.Body)
+		alert = TradingViewAlert{
+			Strategy: "alert",
+			Symbol:   "",
+			Action:   "",
+			Price:    0.0,
+			Quantity: 0.0,
+			Message:  fmt.Sprintf("%s", c.Request.Body),
+			Exchange: "",
+			Time:     time.Now().Format(time.RFC3339),
+		}
 	}
 
 	// Get raw payload for logging
@@ -89,8 +101,10 @@ func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 
 	// Process trading signal if applicable
 	go func() {
-		if err := h.tradingService.ProcessTradingSignal(alertRecord); err != nil {
-			log.Printf("Failed to process trading signal: %v", err)
+		if flagIsTradingAlert {
+			if err := h.tradingService.ProcessTradingSignal(alertRecord); err != nil {
+				log.Printf("Failed to process trading signal: %v", err)
+			}
 		}
 	}()
 

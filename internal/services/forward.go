@@ -70,7 +70,7 @@ func (s *ForwardService) forwardToEndpoint(alert *models.Alert, endpoint config.
 
 // forwardToTelegram forwards an alert to Telegram
 func (s *ForwardService) forwardToTelegram(alert *models.Alert, endpoint config.EndpointConfig) error {
-	message := s.formatTelegramMessage(alert)
+	message := s.formatRawMessage(alert)
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", endpoint.Token)
 	payload := map[string]interface{}{
@@ -97,7 +97,7 @@ func (s *ForwardService) forwardToTelegram(alert *models.Alert, endpoint config.
 
 // forwardToWeChat forwards an alert to WeChat (Enterprise WeChat)
 func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.EndpointConfig) error {
-	message := s.formatWeChatMessage(alert)
+	message := s.formatRawMessage(alert)
 
 	payload := map[string]interface{}{
 		"msgtype": "text",
@@ -124,7 +124,7 @@ func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.En
 
 // forwardToDingTalk forwards an alert to DingTalk
 func (s *ForwardService) forwardToDingTalk(alert *models.Alert, endpoint config.EndpointConfig) error {
-	message := s.formatDingTalkMessage(alert)
+	message := s.formatRawMessage(alert)
 
 	payload := map[string]interface{}{
 		"msgtype": "text",
@@ -219,4 +219,9 @@ func (s *ForwardService) formatDingTalkMessage(alert *models.Alert) string {
 	}
 	sb.WriteString(fmt.Sprintf("⏰ Time: %s", alert.CreatedAt.Format("2006-01-02 15:04:05")))
 	return sb.String()
+}
+
+// formatRawMessage formats the alert message for raw message
+func (s *ForwardService) formatRawMessage(alert *models.Alert) string {
+	return alert.Message
 }
