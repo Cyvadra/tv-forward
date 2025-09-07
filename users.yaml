@@ -1,0 +1,28 @@
+users:
+  - api_sec: "asdfasdfasdfasdf"
+    name: "Demo User"
+    is_active: true
+    credentials:
+      - exchange: "bitget"
+        api_key: "YOUR_BITGET_API_KEY"
+        secret_key: "YOUR_BITGET_SECRET_KEY"
+        passphrase: "YOUR_BITGET_PASSPHRASE"
+        is_active: true
+      - exchange: "binance"
+        api_key: "YOUR_BINANCE_API_KEY"
+        secret_key: "YOUR_BINANCE_SECRET_KEY"
+        is_active: true
+      - exchange: "okx"
+        api_key: "YOUR_OKX_API_KEY"
+        secret_key: "YOUR_OKX_SECRET_KEY"
+        passphrase: "YOUR_OKX_PASSPHRASE"
+        is_active: true
+
+  - api_sec: "another_user_api_sec"
+    name: "Another User"
+    is_active: true
+    credentials:
+      - exchange: "binance"
+        api_key: "ANOTHER_BINANCE_API_KEY"
+        secret_key: "ANOTHER_BINANCE_SECRET_KEY"
+        is_active: true

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -35,14 +36,20 @@ type AlertHandler struct {
 	alertService   *services.AlertService
 	forwardService *services.ForwardService
 	tradingService *services.TradingService
+	userService    *services.UserService
 }
 
 // NewAlertHandler creates a new alert handler
 func NewAlertHandler() *AlertHandler {
+	userService := services.NewUserService()
+	tradingService := services.NewTradingService()
+	tradingService.SetUserService(userService)
+
 	return &AlertHandler{
 		alertService:   services.NewAlertService(),
 		forwardService: services.NewForwardService(),
-		tradingService: services.NewTradingService(),
+		tradingService: tradingService,
+		userService:    userService,
 	}
 }
 
@@ -62,11 +69,13 @@ func (h *AlertHandler) SetConfig(cfg *config.Config) {
 	h.tradingService.SetConfig(cfg)
 }
 
+// SetUserConfig sets the user configuration for all services
+func (h *AlertHandler) SetUserConfig(userConfig *config.UserConfig) {
+	h.userService.SetUserConfig(userConfig)
+}
+
 // HandleTradingViewAlert handles incoming TradingView alerts
 func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
-	var alert TradingViewAlert
-	flagIsTradingAlert := true
-
 	// Read the request body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -75,7 +84,18 @@ func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 		return
 	}
 
-	// Try to parse as JSON
+	// Try to parse as TradingView signal first
+	var tvSignal models.TradingViewSignal
+	if err := json.Unmarshal(body, &tvSignal); err == nil && tvSignal.APISec != "" {
+		// This is a TradingView trading signal
+		h.handleTradingViewSignal(c, &tvSignal, body)
+		return
+	}
+
+	// Try to parse as legacy alert format
+	var alert TradingViewAlert
+	flagIsTradingAlert := true
+
 	if err := json.Unmarshal(body, &alert); err != nil {
 		flagIsTradingAlert = false
 		// Log the raw request body for debugging
@@ -137,6 +157,53 @@ func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 	})
 }
 
+// handleTradingViewSignal handles TradingView trading signals
+func (h *AlertHandler) handleTradingViewSignal(c *gin.Context, signal *models.TradingViewSignal, body []byte) {
+	// Process the trading signal
+	if err := h.tradingService.ProcessTradingViewSignal(signal); err != nil {
+		log.Printf("Failed to process trading signal: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to process trading signal",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Also create an alert record for tracking
+	alertRecord := &models.Alert{
+		Strategy:   "trading_signal",
+		Symbol:     signal.Symbol,
+		Action:     signal.Action,
+		Price:      0, // Will be parsed from string if needed
+		Quantity:   0, // Will be parsed from string if needed
+		Message:    fmt.Sprintf("Trading signal: %s %s %s", signal.Action, signal.Symbol, signal.PositionSize),
+		RawPayload: string(body),
+		Status:     "processed",
+		CreatedAt:  time.Now(),
+	}
+
+	// Save alert to database
+	if err := h.alertService.SaveAlert(alertRecord); err != nil {
+		log.Printf("Failed to save alert: %v", err)
+	}
+
+	// Forward alert to downstream endpoints
+	go func() {
+		if err := h.forwardService.ForwardAlert(alertRecord); err != nil {
+			log.Printf("Failed to forward alert: %v", err)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Trading signal received and processed",
+		"signal_id": signal.ID,
+		"api_sec":   signal.APISec,
+		"symbol":    signal.Symbol,
+		"action":    signal.Action,
+		"alert_id":  alertRecord.ID,
+	})
+}
+
 // GetAlerts retrieves all alerts with pagination
 func (h *AlertHandler) GetAlerts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -189,4 +256,61 @@ func (h *AlertHandler) GetTradingSignals(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, signals)
+}
+
+// GetUserSignals retrieves trading signals for a specific user by api_sec
+func (h *AlertHandler) GetUserSignals(c *gin.Context) {
+	apiSec := c.Param("api_sec")
+	if apiSec == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "api_sec parameter is required"})
+		return
+	}
+
+	// Get user by api_sec
+	user, err := h.userService.GetOrCreateUserByAPISec(apiSec)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	signals, err := h.userService.GetUserTradingSignals(user.ID, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve trading signals"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": user.ID,
+		"api_sec": user.APISec,
+		"signals": signals,
+	})
+}
+
+// GetUserPositions retrieves current positions for a specific user by api_sec
+func (h *AlertHandler) GetUserPositions(c *gin.Context) {
+	apiSec := c.Param("api_sec")
+	if apiSec == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "api_sec parameter is required"})
+		return
+	}
+
+	// Get user by api_sec
+	user, err := h.userService.GetOrCreateUserByAPISec(apiSec)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+
+	positions, err := h.userService.GetUserPositions(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve positions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":   user.ID,
+		"api_sec":   user.APISec,
+		"positions": positions,
+	})
 }

@@ -28,6 +28,9 @@ func InitDatabase(dsn string) error {
 		&models.Alert{},
 		&models.TradingSignal{},
 		&models.DownstreamEndpoint{},
+		&models.User{},
+		&models.UserCredential{},
+		&models.Position{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
