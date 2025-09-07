@@ -27,6 +27,13 @@ func SetupRoutes(r *gin.Engine) {
 			alerts.GET("/:id", alertHandler.GetAlert)
 			alerts.GET("/:id/signals", alertHandler.GetTradingSignals)
 		}
+
+		// User management endpoints
+		users := api.Group("/users")
+		{
+			users.GET("/:api_sec/signals", alertHandler.GetUserSignals)
+			users.GET("/:api_sec/positions", alertHandler.GetUserPositions)
+		}
 	}
 
 	// Health check endpoint

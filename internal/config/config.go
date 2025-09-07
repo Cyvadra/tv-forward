@@ -41,6 +41,7 @@ type EndpointConfig struct {
 type TradingConfig struct {
 	Bitget  BitgetConfig  `yaml:"bitget"`
 	Binance BinanceConfig `yaml:"binance"`
+	OKX     OKXConfig     `yaml:"okx"`
 	Derbit  DerbitConfig  `yaml:"derbit"`
 }
 
@@ -57,6 +58,14 @@ type BinanceConfig struct {
 	APIKey    string `yaml:"api_key"`
 	SecretKey string `yaml:"secret_key"`
 	IsActive  bool   `yaml:"is_active" default:"false"`
+}
+
+// OKXConfig represents OKX trading platform configuration
+type OKXConfig struct {
+	APIKey     string `yaml:"api_key"`
+	SecretKey  string `yaml:"secret_key"`
+	Passphrase string `yaml:"passphrase"`
+	IsActive   bool   `yaml:"is_active" default:"false"`
 }
 
 // DerbitConfig represents Derbit trading platform configuration

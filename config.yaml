@@ -47,6 +47,12 @@ trading:
     secret_key: "YOUR_BINANCE_SECRET_KEY"
     is_active: false
 
+  okx:
+    api_key: "YOUR_OKX_API_KEY"
+    secret_key: "YOUR_OKX_SECRET_KEY"
+    passphrase: "YOUR_OKX_PASSPHRASE"
+    is_active: false
+
   derbit:
     api_key: "YOUR_DERBIT_API_KEY"
     secret_key: "YOUR_DERBIT_SECRET_KEY"

@@ -22,20 +22,6 @@ type Alert struct {
 	DeletedAt  gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 }
 
-// TradingSignal represents a processed trading signal
-type TradingSignal struct {
-	ID         uint           `json:"id" gorm:"primaryKey"`
-	AlertID    uint           `json:"alert_id"`
-	Alert      Alert          `json:"alert" gorm:"foreignKey:AlertID"`
-	Platform   string         `json:"platform"` // bitget, binance, derbit
-	OrderID    string         `json:"order_id"`
-	Status     string         `json:"status"` // pending, filled, cancelled, failed
-	ExecutedAt *time.Time     `json:"executed_at"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
-}
-
 // DownstreamEndpoint represents a webhook endpoint configuration
 type DownstreamEndpoint struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
