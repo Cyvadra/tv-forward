@@ -96,6 +96,13 @@ func (s *UserService) GetUserCredentials(userID uint, exchange string) (*models.
 	return &credential, nil
 }
 
+// GetAllUserCredentials returns all active credentials for a user
+func (s *UserService) GetAllUserCredentials(userID uint) ([]models.UserCredential, error) {
+	var credentials []models.UserCredential
+	err := s.db.Where("user_id = ? AND is_active = ?", userID, true).Find(&credentials).Error
+	return credentials, err
+}
+
 // GetUserPositions returns current positions for a user
 func (s *UserService) GetUserPositions(userID uint) ([]models.Position, error) {
 	var positions []models.Position

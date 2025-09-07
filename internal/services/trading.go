@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
 	"time"
 
+	"github.com/Cyvadra/tv-forward/broker"
+	"github.com/Cyvadra/tv-forward/broker/binance"
 	"github.com/Cyvadra/tv-forward/internal/config"
 	"github.com/Cyvadra/tv-forward/internal/database"
 	"github.com/Cyvadra/tv-forward/internal/models"
@@ -308,13 +311,90 @@ func (s *TradingService) executeOnBitgetLegacy(alert *models.Alert, signal *mode
 
 // executeOnBinanceLegacy executes a trade on Binance (legacy method for alerts)
 func (s *TradingService) executeOnBinanceLegacy(alert *models.Alert, signal *models.TradingSignal) error {
-	// This is a placeholder implementation
-	// In a real implementation, you would integrate with Binance's API
-	log.Printf("Executing %s order for %s on Binance at price %.8f",
-		alert.Action, alert.Symbol, alert.Price)
+	log.Printf("Starting Binance legacy execution for alert %d", alert.ID)
 
-	// Simulate order execution
-	signal.OrderID = fmt.Sprintf("binance_%d_%d", alert.ID, time.Now().Unix())
+	if s.config == nil || !s.config.Trading.Binance.IsActive {
+		log.Printf("Binance trading not configured or not active for alert %d", alert.ID)
+		return fmt.Errorf("binance trading is not configured or not active")
+	}
+
+	// Validate credentials
+	if s.config.Trading.Binance.APIKey == "" || s.config.Trading.Binance.SecretKey == "" {
+		log.Printf("Binance credentials are empty for alert %d", alert.ID)
+		return fmt.Errorf("binance credentials are not configured")
+	}
+
+	// Create Binance client using config credentials
+	client := binance.NewClient()
+	brokerCreds := &broker.Credentials{
+		APIKey:    s.config.Trading.Binance.APIKey,
+		SecretKey: s.config.Trading.Binance.SecretKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := client.Initialize(ctx, brokerCreds); err != nil {
+		log.Printf("Failed to initialize Binance client for alert %d: %v", alert.ID, err)
+		return fmt.Errorf("failed to initialize binance client: %w", err)
+	}
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			log.Printf("Warning: Failed to close Binance client: %v", closeErr)
+		}
+	}()
+
+	// Convert alert to order request
+	orderReq, err := s.convertAlertToOrderRequest(alert)
+	if err != nil {
+		log.Printf("Failed to convert alert to order request for alert %d: %v", alert.ID, err)
+		return fmt.Errorf("failed to convert alert to order request: %w", err)
+	}
+
+	log.Printf("Executing %s order for %s on Binance at price %.8f (alert %d)",
+		alert.Action, alert.Symbol, alert.Price, alert.ID)
+
+	// Place order with retry logic
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	order, err := client.PlaceOrder(ctx, orderReq)
+	if err != nil {
+		log.Printf("Binance legacy order failed for alert %d: %v", alert.ID, err)
+
+		// Check if this is a retryable error
+		if broker.IsRetryableError(err) {
+			log.Printf("Retryable error detected, attempting retry for alert %d", alert.ID)
+			// Wait a bit and retry once
+			time.Sleep(1 * time.Second)
+
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel2()
+
+			order, err = client.PlaceOrder(ctx2, orderReq)
+			if err != nil {
+				log.Printf("Binance legacy order retry failed for alert %d: %v", alert.ID, err)
+				return fmt.Errorf("failed to place binance order after retry: %w", err)
+			}
+			log.Printf("Binance legacy order succeeded on retry for alert %d", alert.ID)
+		} else {
+			return fmt.Errorf("failed to place binance order: %w", err)
+		}
+	}
+
+	// Validate response
+	if order == nil {
+		log.Printf("Warning: Received nil order response from Binance for alert %d", alert.ID)
+		return fmt.Errorf("received nil order response from binance")
+	}
+
+	// Store order ID
+	signal.OrderID = order.ID
+	log.Printf("Binance legacy order placed successfully for alert %d: ID=%s, Status=%s, Symbol=%s",
+		alert.ID, order.ID, order.Status, order.Symbol)
+
+	// Log additional order details for audit trail
+	log.Printf("Binance legacy order details - Alert: %d, OrderID: %s, Symbol: %s, Side: %s, Quantity: %s, Price: %s, Status: %s",
+		alert.ID, order.ID, order.Symbol, order.Side, order.Quantity, order.Price, order.Status)
 
 	return nil
 }
@@ -332,24 +412,85 @@ func (s *TradingService) executeOnOKXLegacy(alert *models.Alert, signal *models.
 	return nil
 }
 
-// executeOnBinance executes a trade on Binance
+// executeOnBinance executes a trade on Binance using the broker system
 func (s *TradingService) executeOnBinance(userID uint, signal *models.TradingSignal) error {
+	log.Printf("Starting Binance execution for user %d, signal %s", userID, signal.SignalID)
+
 	// Get user credentials
 	credential, err := s.userService.GetUserCredentials(userID, "binance")
 	if err != nil {
+		log.Printf("Failed to get Binance credentials for user %d: %v", userID, err)
 		return fmt.Errorf("failed to get binance credentials: %w", err)
 	}
 
-	// This is a placeholder implementation
-	// In a real implementation, you would integrate with Binance's API
-	log.Printf("Executing %s order for %s on Binance at price %s for user %d",
-		signal.Action, signal.Symbol, signal.Price, userID)
+	// Create Binance client
+	binanceClient, err := createBinanceClient(credential)
+	if err != nil {
+		log.Printf("Failed to create Binance client for user %d: %v", userID, err)
+		return fmt.Errorf("failed to create binance client: %w", err)
+	}
+	defer func() {
+		if closeErr := binanceClient.Close(); closeErr != nil {
+			log.Printf("Warning: Failed to close Binance client: %v", closeErr)
+		}
+	}()
 
-	// Simulate order execution
-	signal.OrderID = fmt.Sprintf("binance_%d_%d", signal.ID, time.Now().Unix())
+	// Convert signal to order request
+	orderReq, err := s.convertSignalToOrderRequest(signal)
+	if err != nil {
+		log.Printf("Failed to convert signal to order request: %v", err)
+		return fmt.Errorf("failed to convert signal to order request: %w", err)
+	}
 
-	// TODO: Implement actual Binance API integration using credential
-	_ = credential
+	if orderReq == nil {
+		log.Printf("No order needed for signal: %s", signal.Symbol)
+		return nil
+	}
+
+	log.Printf("Executing %s order for %s on Binance: side=%s, quantity=%s, price=%s, user=%d",
+		signal.Action, signal.Symbol, orderReq.Side, orderReq.Quantity, orderReq.Price, userID)
+
+	// Place order with retry logic for temporary errors
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	order, err := binanceClient.PlaceOrder(ctx, orderReq)
+	if err != nil {
+		log.Printf("Binance order failed for user %d: %v", userID, err)
+
+		// Check if this is a retryable error
+		if broker.IsRetryableError(err) {
+			log.Printf("Retryable error detected, attempting retry for user %d", userID)
+			// Wait a bit and retry once
+			time.Sleep(1 * time.Second)
+
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel2()
+
+			order, err = binanceClient.PlaceOrder(ctx2, orderReq)
+			if err != nil {
+				log.Printf("Binance order retry failed for user %d: %v", userID, err)
+				return fmt.Errorf("failed to place binance order after retry: %w", err)
+			}
+			log.Printf("Binance order succeeded on retry for user %d", userID)
+		} else {
+			return fmt.Errorf("failed to place binance order: %w", err)
+		}
+	}
+
+	// Store order ID and validate response
+	if order == nil {
+		log.Printf("Warning: Received nil order response from Binance for user %d", userID)
+		return fmt.Errorf("received nil order response from binance")
+	}
+
+	signal.OrderID = order.ID
+	log.Printf("Binance order placed successfully for user %d: ID=%s, Status=%s, Symbol=%s",
+		userID, order.ID, order.Status, order.Symbol)
+
+	// Log additional order details for audit trail
+	log.Printf("Binance order details - User: %d, OrderID: %s, Symbol: %s, Side: %s, Quantity: %s, Price: %s, Status: %s",
+		userID, order.ID, order.Symbol, order.Side, order.Quantity, order.Price, order.Status)
 
 	return nil
 }
@@ -401,4 +542,198 @@ func (s *TradingService) GetTradingSignalsByStatus(status string, limit int) ([]
 		Limit(limit).
 		Find(&signals).Error
 	return signals, err
+}
+
+// Helper functions for Binance integration
+
+// createBinanceClient creates a Binance client using user credentials
+func createBinanceClient(credential *models.UserCredential) (broker.Broker, error) {
+	// Create Binance client
+	client := binance.NewClient()
+
+	// Initialize with credentials
+	brokerCreds := &broker.Credentials{
+		APIKey:    credential.APIKey,
+		SecretKey: credential.SecretKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := client.Initialize(ctx, brokerCreds); err != nil {
+		return nil, fmt.Errorf("failed to initialize binance client: %w", err)
+	}
+
+	return client, nil
+}
+
+// convertSignalToOrderRequest converts a trading signal to a broker order request
+func (s *TradingService) convertSignalToOrderRequest(signal *models.TradingSignal) (*broker.OrderRequest, error) {
+	// Parse position sizes
+	prevSize, err := strconv.ParseFloat(signal.PrevMarketPositionSize, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid prev_market_position_size: %w", err)
+	}
+
+	targetSize, err := strconv.ParseFloat(signal.MarketPositionSize, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid market_position_size: %w", err)
+	}
+
+	// Calculate order quantity and side
+	quantity, side, err := broker.CalculateOrderQuantity(prevSize, targetSize)
+	if err != nil {
+		if err.Error() == "no position change required" {
+			return nil, nil // No order needed
+		}
+		return nil, err
+	}
+
+	// Determine position side for futures
+	var positionSide broker.PositionSide
+	if targetSize > 0 {
+		positionSide = broker.PositionSideLong
+	} else if targetSize < 0 {
+		positionSide = broker.PositionSideShort
+	} else {
+		positionSide = broker.PositionSideBoth
+	}
+
+	// Determine order type
+	var orderType broker.OrderType
+	var price string
+	if signal.OrderType == "limit" && signal.Price != "" {
+		orderType = broker.OrderTypeLimit
+		price = signal.Price
+	} else {
+		orderType = broker.OrderTypeMarket
+	}
+
+	// Format symbol for Binance
+	symbol := broker.FormatSymbol(signal.Symbol, "binance")
+
+	// Create order request
+	orderReq := &broker.OrderRequest{
+		Symbol:       symbol,
+		Side:         side,
+		Type:         orderType,
+		Quantity:     broker.FormatQuantity(quantity, 8),
+		Price:        price,
+		PositionSide: positionSide,
+		TimeInForce:  "GTC",
+	}
+
+	// Set reduce only for closing positions
+	if (prevSize > 0 && targetSize < prevSize) || (prevSize < 0 && targetSize > prevSize) {
+		orderReq.ReduceOnly = true
+	}
+
+	return orderReq, nil
+}
+
+// convertAlertToOrderRequest converts a legacy alert to a broker order request
+func (s *TradingService) convertAlertToOrderRequest(alert *models.Alert) (*broker.OrderRequest, error) {
+	// Determine order side based on action
+	var side broker.OrderSide
+	switch alert.Action {
+	case "buy":
+		side = broker.OrderSideBuy
+	case "sell":
+		side = broker.OrderSideSell
+	default:
+		return nil, fmt.Errorf("unsupported action: %s", alert.Action)
+	}
+
+	// Format symbol for Binance
+	symbol := broker.FormatSymbol(alert.Symbol, "binance")
+
+	// Create order request (using market orders for alerts)
+	orderReq := &broker.OrderRequest{
+		Symbol:       symbol,
+		Side:         side,
+		Type:         broker.OrderTypeMarket,
+		Quantity:     fmt.Sprintf("%.8f", alert.Quantity),
+		PositionSide: broker.PositionSideBoth, // Default for one-way mode
+		TimeInForce:  "GTC",
+	}
+
+	// Use limit order if price is specified
+	if alert.Price > 0 {
+		orderReq.Type = broker.OrderTypeLimit
+		orderReq.Price = fmt.Sprintf("%.8f", alert.Price)
+	}
+
+	return orderReq, nil
+}
+
+// trackBinanceOrderStatus tracks the status of a Binance order and updates the signal
+func (s *TradingService) trackBinanceOrderStatus(ctx context.Context, client broker.Broker, signal *models.TradingSignal) error {
+	if signal.OrderID == "" {
+		return fmt.Errorf("no order ID to track")
+	}
+
+	// Get order status from Binance
+	order, err := client.GetOrder(ctx, signal.Symbol, signal.OrderID)
+	if err != nil {
+		log.Printf("Failed to get order status for %s: %v", signal.OrderID, err)
+		return fmt.Errorf("failed to get order status: %w", err)
+	}
+
+	// Update signal with order status
+	prevStatus := signal.Status
+	switch order.Status {
+	case broker.OrderStatusFilled:
+		signal.Status = "filled"
+		if signal.ExecutedAt == nil {
+			now := time.Now()
+			signal.ExecutedAt = &now
+		}
+	case broker.OrderStatusCanceled, broker.OrderStatusRejected, broker.OrderStatusExpired:
+		signal.Status = "failed"
+		signal.ErrorMessage = fmt.Sprintf("Order %s: %s", string(order.Status), order.ID)
+	case broker.OrderStatusPartiallyFilled:
+		signal.Status = "partially_filled"
+	default:
+		signal.Status = "pending"
+	}
+
+	// Log status change
+	if prevStatus != signal.Status {
+		log.Printf("Order status changed for %s: %s -> %s (OrderID: %s)",
+			signal.Symbol, prevStatus, signal.Status, signal.OrderID)
+	}
+
+	// Save updated signal
+	if err := s.db.Save(signal).Error; err != nil {
+		log.Printf("Failed to update signal status: %v", err)
+		return fmt.Errorf("failed to update signal status: %w", err)
+	}
+
+	return nil
+}
+
+// getBinanceOrderStatus retrieves the current status of a Binance order
+func (s *TradingService) getBinanceOrderStatus(userID uint, symbol, orderID string) (*broker.Order, error) {
+	// Get user credentials
+	credential, err := s.userService.GetUserCredentials(userID, "binance")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get binance credentials: %w", err)
+	}
+
+	// Create Binance client
+	client, err := createBinanceClient(credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create binance client: %w", err)
+	}
+	defer client.Close()
+
+	// Get order status
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	order, err := client.GetOrder(ctx, symbol, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order status: %w", err)
+	}
+
+	return order, nil
 }
