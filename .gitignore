@@ -34,3 +34,4 @@ go.work.sum
 
 # Config
 users.yaml
+config.yaml
