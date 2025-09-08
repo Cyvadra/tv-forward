@@ -45,7 +45,7 @@ func (s *UserService) GetOrCreateUserByAPISec(apiSec string) (*models.User, erro
 	// User not found, create new one
 	user = models.User{
 		APISec:   apiSec,
-		Name:     fmt.Sprintf("User_%s", apiSec[:8]), // Default name
+		Name:     fmt.Sprintf("User_%s", apiSec[:min(8, len(apiSec)-1)]), // Default name
 		IsActive: true,
 	}
 
