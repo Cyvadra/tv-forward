@@ -12,6 +12,8 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
+const FLAG_USE_TESTNET = true
+
 // Client represents a Binance futures broker client
 type Client struct {
 	name        string
@@ -44,6 +46,7 @@ func (c *Client) Initialize(ctx context.Context, credentials *broker.Credentials
 	}
 
 	c.credentials = credentials
+	binance.UseTestnet = FLAG_USE_TESTNET
 	c.client = binance.NewFuturesClient(credentials.APIKey, credentials.SecretKey)
 
 	// Test connection
