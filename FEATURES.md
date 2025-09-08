@@ -119,7 +119,7 @@ User-specific configuration including API credentials for each exchange.
 Use the provided `test_signal.json` to test the new signal format:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/webhook/tradingview \
+curl -X POST http://localhost:9006/api/v1/webhook/tradingview \
   -H "Content-Type: application/json" \
   -d @test_signal.json
 ```

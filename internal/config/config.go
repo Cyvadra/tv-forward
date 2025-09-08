@@ -17,7 +17,7 @@ type Config struct {
 
 // ServerConfig represents server configuration
 type ServerConfig struct {
-	Port string `yaml:"port" default:":8080"`
+	Port string `yaml:"port" default:":9006"`
 	Host string `yaml:"host" default:"localhost"`
 }
 

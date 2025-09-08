@@ -1,6 +1,6 @@
 server:
   host: "localhost"
-  port: "8080"
+  port: "9006"
 
 database:
   driver: "sqlite"

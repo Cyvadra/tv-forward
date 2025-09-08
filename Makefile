@@ -78,7 +78,7 @@ docker-build:
 # Docker run
 docker-run:
 	@echo "Running Docker container..."
-	docker run -p 8080:8080 -v $(PWD)/$(CONFIG_FILE):/app/$(CONFIG_FILE) $(BINARY_NAME)
+	docker run -p 9006:9006 -v $(PWD)/$(CONFIG_FILE):/app/$(CONFIG_FILE) $(BINARY_NAME)
 
 # Show help
 help:

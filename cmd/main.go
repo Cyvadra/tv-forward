@@ -20,22 +20,14 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
-		log.Printf("Failed to load config from %s, creating default config...", *configFile)
-		cfg = createDefaultConfig()
-		if err := config.SaveConfig(cfg, *configFile); err != nil {
-			log.Printf("Failed to save default config: %v", err)
-		}
+		panic(fmt.Sprintf("Failed to load config from %s, creating default config...", *configFile))
 	}
 
 	// Load user configuration
 	userConfigFile := "users.yaml"
 	userConfig, err := config.LoadUserConfig(userConfigFile)
 	if err != nil {
-		log.Printf("Failed to load user config from %s, creating default user config...", userConfigFile)
-		userConfig = createDefaultUserConfig()
-		if err := config.SaveUserConfig(userConfig, userConfigFile); err != nil {
-			log.Printf("Failed to save default user config: %v", err)
-		}
+		panic(fmt.Sprintf("Failed to load user config from %s, creating default user config...", userConfigFile))
 	}
 
 	// Initialize database
@@ -79,103 +71,4 @@ func setupServices(cfg *config.Config, userConfig *config.UserConfig) {
 
 	// Store the configured handler globally so routes can access it
 	handlers.SetGlobalHandler(alertHandler)
-}
-
-// createDefaultConfig creates a default configuration
-func createDefaultConfig() *config.Config {
-	return &config.Config{
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: "8080",
-		},
-		Database: config.DatabaseConfig{
-			Driver: "sqlite",
-			DSN:    "tv-forward.db",
-		},
-		Endpoints: []config.EndpointConfig{
-			{
-				Name:     "Telegram Bot",
-				Type:     "telegram",
-				URL:      "",
-				Token:    "YOUR_TELEGRAM_BOT_TOKEN",
-				ChatID:   "YOUR_CHAT_ID",
-				IsActive: false,
-			},
-			{
-				Name:     "WeChat Bot",
-				Type:     "wechat",
-				URL:      "YOUR_WECHAT_WEBHOOK_URL",
-				Token:    "",
-				ChatID:   "",
-				IsActive: false,
-			},
-			{
-				Name:     "DingTalk Bot",
-				Type:     "dingtalk",
-				URL:      "YOUR_DINGTALK_WEBHOOK_URL",
-				Token:    "",
-				ChatID:   "",
-				IsActive: false,
-			},
-		},
-		Trading: config.TradingConfig{
-			Bitget: config.BitgetConfig{
-				APIKey:     "YOUR_BITGET_API_KEY",
-				SecretKey:  "YOUR_BITGET_SECRET_KEY",
-				Passphrase: "YOUR_BITGET_PASSPHRASE",
-				IsActive:   false,
-			},
-			Binance: config.BinanceConfig{
-				APIKey:    "YOUR_BINANCE_API_KEY",
-				SecretKey: "YOUR_BINANCE_SECRET_KEY",
-				IsActive:  false,
-			},
-			OKX: config.OKXConfig{
-				APIKey:     "YOUR_OKX_API_KEY",
-				SecretKey:  "YOUR_OKX_SECRET_KEY",
-				Passphrase: "YOUR_OKX_PASSPHRASE",
-				IsActive:   false,
-			},
-			Derbit: config.DerbitConfig{
-				APIKey:    "YOUR_DERBIT_API_KEY",
-				SecretKey: "YOUR_DERBIT_SECRET_KEY",
-				IsActive:  false,
-			},
-		},
-	}
-}
-
-// createDefaultUserConfig creates a default user configuration
-func createDefaultUserConfig() *config.UserConfig {
-	return &config.UserConfig{
-		Users: []config.UserConfigEntry{
-			{
-				APISec:   "asdfasdfasdfasdf",
-				Name:     "Demo User",
-				IsActive: true,
-				Credentials: []config.UserCredentialConfig{
-					{
-						Exchange:   "bitget",
-						APIKey:     "YOUR_BITGET_API_KEY",
-						SecretKey:  "YOUR_BITGET_SECRET_KEY",
-						Passphrase: "YOUR_BITGET_PASSPHRASE",
-						IsActive:   true,
-					},
-					{
-						Exchange:  "binance",
-						APIKey:    "YOUR_BINANCE_API_KEY",
-						SecretKey: "YOUR_BINANCE_SECRET_KEY",
-						IsActive:  true,
-					},
-					{
-						Exchange:   "okx",
-						APIKey:     "YOUR_OKX_API_KEY",
-						SecretKey:  "YOUR_OKX_SECRET_KEY",
-						Passphrase: "YOUR_OKX_PASSPHRASE",
-						IsActive:   true,
-					},
-				},
-			},
-		},
-	}
 }

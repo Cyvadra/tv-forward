@@ -46,7 +46,7 @@ Edit the `config.yaml` file to configure your endpoints and trading platforms:
 ```yaml
 server:
   host: "localhost"
-  port: "8080"
+  port: "9006"
 
 database:
   driver: "sqlite"
@@ -121,7 +121,7 @@ trading:
 
 1. In TradingView, create a new alert
 2. Set the alert action to "Webhook URL"
-3. Use the URL: `http://your-server:8080/api/v1/webhook/tradingview`
+3. Use the URL: `http://your-server:9006/api/v1/webhook/tradingview`
 4. Configure the alert message as JSON with the required fields
 
 ## Supported Platforms
