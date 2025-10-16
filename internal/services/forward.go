@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -33,8 +34,22 @@ func (s *ForwardService) SetConfig(cfg *config.Config) {
 
 // ForwardAlert forwards an alert to all configured downstream endpoints
 func (s *ForwardService) ForwardAlert(alert *models.Alert) error {
+	return s.ForwardAlertWithURL(alert, "")
+}
+
+// ForwardAlertWithURL forwards an alert to all configured downstream endpoints with optional URL override
+func (s *ForwardService) ForwardAlertWithURL(alert *models.Alert, requestURL string) error {
 	if s.config == nil {
 		return fmt.Errorf("configuration not set")
+	}
+
+	// Extract key from request URL if present
+	var wechatKey string
+	if requestURL != "" {
+		if key, err := s.extractKeyFromURL(requestURL); err == nil && key != "" {
+			wechatKey = key
+			log.Printf("Extracted WeChat key from URL: %s", wechatKey)
+		}
 	}
 
 	for _, endpoint := range s.config.Endpoints {
@@ -43,7 +58,7 @@ func (s *ForwardService) ForwardAlert(alert *models.Alert) error {
 		}
 
 		go func(ep config.EndpointConfig) {
-			if err := s.forwardToEndpoint(alert, ep); err != nil {
+			if err := s.forwardToEndpoint(alert, ep, wechatKey); err != nil {
 				log.Printf("Failed to forward to %s (%s): %v", ep.Name, ep.Type, err)
 			}
 		}(endpoint)
@@ -52,13 +67,29 @@ func (s *ForwardService) ForwardAlert(alert *models.Alert) error {
 	return nil
 }
 
+// extractKeyFromURL extracts the key parameter from a request URL
+func (s *ForwardService) extractKeyFromURL(requestURL string) (string, error) {
+	parsedURL, err := url.Parse(requestURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	key := parsedURL.Query().Get("key")
+	return key, nil
+}
+
+// buildWeChatURL builds a WeChat webhook URL with the provided key
+func (s *ForwardService) buildWeChatURL(key string) string {
+	return fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=%s", key)
+}
+
 // forwardToEndpoint forwards an alert to a specific endpoint
-func (s *ForwardService) forwardToEndpoint(alert *models.Alert, endpoint config.EndpointConfig) error {
+func (s *ForwardService) forwardToEndpoint(alert *models.Alert, endpoint config.EndpointConfig, wechatKey string) error {
 	switch endpoint.Type {
 	case "telegram":
 		return s.forwardToTelegram(alert, endpoint)
 	case "wechat":
-		return s.forwardToWeChat(alert, endpoint)
+		return s.forwardToWeChat(alert, endpoint, wechatKey)
 	case "dingtalk":
 		return s.forwardToDingTalk(alert, endpoint)
 	case "webhook":
@@ -96,10 +127,18 @@ func (s *ForwardService) forwardToTelegram(alert *models.Alert, endpoint config.
 }
 
 // forwardToWeChat forwards an alert to WeChat (Enterprise WeChat)
-func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.EndpointConfig) error {
+func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.EndpointConfig, wechatKey string) error {
 	message := s.formatRawMessage(alert)
 
 	log.Printf("WeChat message: %s", message)
+
+	// Use dynamic key if provided, otherwise use the configured URL
+	wechatURL := endpoint.URL
+	if wechatKey != "" {
+		// Replace the key in the URL
+		wechatURL = s.buildWeChatURL(wechatKey)
+		log.Printf("Using dynamic WeChat URL with key: %s", wechatKey)
+	}
 
 	payload := map[string]interface{}{
 		"msgtype": "text",
@@ -111,7 +150,7 @@ func (s *ForwardService) forwardToWeChat(alert *models.Alert, endpoint config.En
 	resp, err := s.client.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(payload).
-		Post(endpoint.URL)
+		Post(wechatURL)
 
 	if err != nil {
 		return fmt.Errorf("wechat API request failed: %w", err)

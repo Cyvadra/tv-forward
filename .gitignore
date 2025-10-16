@@ -35,3 +35,8 @@ go.work.sum
 # Config
 users.yaml
 config.yaml
+
+# Executable
+main
+tv-forward
+

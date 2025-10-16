@@ -142,8 +142,9 @@ func (h *AlertHandler) HandleTradingViewAlert(c *gin.Context) {
 				log.Printf("Failed to process trading signal: %v", err)
 			}
 		} else {
-			// Otherwise, forward alert to downstream endpoints
-			if err := h.forwardService.ForwardAlert(alertRecord); err != nil {
+			// Otherwise, forward alert to downstream endpoints with request URL
+			requestURL := c.Request.URL.String()
+			if err := h.forwardService.ForwardAlertWithURL(alertRecord, requestURL); err != nil {
 				log.Printf("Failed to forward alert: %v", err)
 			}
 		}
@@ -187,7 +188,8 @@ func (h *AlertHandler) handleTradingViewSignal(c *gin.Context, signal *models.Tr
 
 	// Forward alert to downstream endpoints
 	go func() {
-		if err := h.forwardService.ForwardAlert(alertRecord); err != nil {
+		requestURL := c.Request.URL.String()
+		if err := h.forwardService.ForwardAlertWithURL(alertRecord, requestURL); err != nil {
 			log.Printf("Failed to forward alert: %v", err)
 		}
 	}()
